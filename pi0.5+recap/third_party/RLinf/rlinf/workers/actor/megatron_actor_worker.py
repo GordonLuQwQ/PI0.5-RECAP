@@ -1,0 +1,557 @@
+# Copyright 2025 The RLinf Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import copy
+
+import torch
+import torch.distributed
+from megatron.core import parallel_state
+from megatron.training.training import unwrap_model
+from megatron.training.utils import average_losses_across_data_parallel_group
+from omegaconf import DictConfig
+from torch.multiprocessing.reductions import reduce_tensor
+
+from rlinf.algorithms.registry import policy_loss
+from rlinf.algorithms.utils import kl_penalty
+from rlinf.utils.distributed import (
+    vocab_parallel_entropy_and_log_probs,
+    vocab_parallel_log_probs_from_logits,
+)
+from rlinf.utils.metric_utils import CRITIC_EXPLAINED_VARIANCE_STAT_KEYS
+from rlinf.utils.placement import (
+    ModelParallelComponentPlacement,
+    PlacementMode,
+    RolloutSyncMode,
+)
+from rlinf.utils.resharding.mcore_weight_reshard import MegatronCoreWeightReshard
+from rlinf.utils.resharding.reshard_config import ReshardConfig
+from rlinf.utils.utils import retrieve_model_state_dict_in_cpu
+from rlinf.workers.megatron_worker import MegatronWorker
+from rlinf.workers.rollout.utils import RankMapper
+
+try:
+    from params_resharding import nccl_group_recreate
+
+    HAVE_RESHARDING = True
+except ImportError:
+    HAVE_RESHARDING = False
+
+
+class MegatronActor(MegatronWorker):
+    def __init__(
+        self, cfg: DictConfig, placement: ModelParallelComponentPlacement, role="actor"
+    ):
+        """Initialize the MegatronWorker.
+
+        Args:
+            cfg (DictConfig): The configuration for the actor.
+        """
+        super().__init__(cfg, placement, role)
+
+        # The sharding coordinates dst_tp_rank / dst_ep_rank are derived in
+        # _setup_rollout_weight_dst_ranks, not here: they follow the target
+        # rollout rank, which the rank map only knows later.
+
+        # Algo configurations
+        self.calculate_entropy = self.cfg.algorithm.calculate_entropy
+        self.calculate_entropy_loss = (
+            self.cfg.algorithm.entropy_bonus > 0 and self.calculate_entropy
+        )
+        clip_ratio = self.cfg.algorithm.ratio_clip_eps
+        self.clip_ratio_low = (
+            self.cfg.algorithm.get("clip_ratio_low")
+            if self.cfg.algorithm.get("clip_ratio_low") is not None
+            else clip_ratio
+        )
+        self.clip_ratio_high = (
+            self.cfg.algorithm.get("clip_ratio_high")
+            if self.cfg.algorithm.get("clip_ratio_high") is not None
+            else clip_ratio
+        )
+
+        self.clip_ratio_c = self.cfg.algorithm.clip_ratio_c
+
+        self.ref_policy_state_dict = None
+
+        # Rollout configurations
+        self.rollout_group_name = self.cfg.rollout.group_name
+
+    def init_worker_customize(self):
+        # only need this if we are running with inital kl penalty & full-parameter tuning
+        if (
+            self.cfg.algorithm.kl_beta > 0
+            or self.cfg.algorithm.get("reinpp_kl_beta", 0) > 0
+        ) and self.cfg.actor.get("combine_reference_model", True):
+            self.ref_policy_state_dict = retrieve_model_state_dict_in_cpu(self.model[0])
+            self.offload_model_buffer = {}
+
+        self.rollout_weights_reshard = None
+        _rollout_tp = self.cfg.rollout.tensor_parallel_size
+        _sglang = self.cfg.rollout.get("sglang", {})
+        # Shared with _setup_rollout_weight_dst_ranks so the two cannot
+        # diverge, e.g. when ep_size is set without enable_ep_moe.
+        _rollout_attn_tp = self.component_placement.rollout_attn_tp_size
+        _rollout_ep = self.component_placement.rollout_ep_size
+        _rollout_moe_dense_tp = _sglang.get("moe_dense_tp_size", None)
+        # sglang's ParallelLMHead uses the full engine TP group, or the attn_tp
+        # group when enable_dp_lm_head is on. Either way the actor gathers to
+        # full and slices to rollout_lm_head_tp_size, so one path covers both.
+        _enable_dp_lm_head = _sglang.get("enable_dp_lm_head", False)
+        _rollout_lm_head_tp = _rollout_attn_tp if _enable_dp_lm_head else _rollout_tp
+        rollout_reshard_config = ReshardConfig(
+            model_type=self.cfg.rollout.model.model_type,
+            model_config=self.transformer_config,
+            reshard_tp_size=_rollout_attn_tp,
+            reshard_pp_size=self.cfg.rollout.pipeline_parallel_size,
+            mg_ep_size=self.role_cfg.model.expert_model_parallel_size,
+            mg_tpe_size=self.role_cfg.model.expert_tensor_parallel_size,
+            moe_grouped_gemm=self.role_cfg.model.get("moe_grouped_gemm", None),
+            rollout_ep_size=_rollout_ep,
+            rollout_moe_dense_tp_size=_rollout_moe_dense_tp,
+            rollout_full_tp_size=_rollout_tp,
+            rollout_lm_head_tp_size=_rollout_lm_head_tp,
+            enable_dp_attention=_sglang.get("enable_dp_attention", False),
+        )
+        self.rollout_weights_reshard = MegatronCoreWeightReshard(rollout_reshard_config)
+        self._setup_rollout_weight_dst_ranks()
+
+    def process_inference_output(self, rollout_result, infer_out):
+        rollout_result.recomputed_logprobs = infer_out
+
+    def get_forward_step_func(self):
+        """Acquire the forward step function for the model."""
+
+        def forward_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
+
+            batch = {key: val.cuda() for key, val in batch.items()}
+
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+            position_ids = batch["position_ids"]
+            padding_seqlen = None
+            if self.variable_seq_lengths is False:
+                if self.enable_dynamic_batch_size:
+                    padding_seqlen = self.max_tokens_per_mbs
+                else:
+                    padding_seqlen = self.encoder_seq_length
+
+            response_len = self.response_len
+            responses = input_ids[:, -response_len:]
+            label = copy.deepcopy(position_ids)
+            label[:, -response_len - 1 : -1] = responses
+            label_mask = copy.deepcopy(attention_mask)
+            label_mask[:, : -response_len - 1] = False
+            label_mask[:, -1] = False
+
+            def logits_processor(logits, label, label_mask):
+                assert logits.shape[:2] == label.shape[:2]
+                assert label.shape == label_mask.shape
+
+                if self.calculate_entropy:
+                    entropy, log_probs = vocab_parallel_entropy_and_log_probs(
+                        logits,
+                        label,
+                        calculate_entropy_loss=self.calculate_entropy_loss,
+                    )
+                    log_probs = log_probs.masked_fill(~label_mask, 0.0)
+                    ret = {"log_probs": log_probs, "entropy": entropy}
+                else:
+                    log_probs = vocab_parallel_log_probs_from_logits(logits, label)
+                    log_probs = log_probs.masked_fill(~label_mask, 0.0)
+                    ret = {"log_probs": log_probs}
+
+                return ret
+
+            logits_processor_args = {"label": label, "label_mask": label_mask}
+
+            output = self.custom_forward(
+                model,
+                input_ids,
+                attention_mask,
+                position_ids,
+                sequence_parallel=self.transformer_config.sequence_parallel,
+                logits_processor=logits_processor,
+                logits_processor_args=logits_processor_args,
+                temperature=self.cfg.algorithm.sampling_params.temperature,
+                padding_seqlen=padding_seqlen,
+            )
+
+            if not self.return_loss:
+
+                def id_func(output, non_loss_data=True):
+                    return output
+
+                # in last stage need to get the log_probs from the output
+                if unwrap_model(model).post_process:
+                    mask = batch["response_mask"][:, -response_len:]
+                    output = output["log_probs"][:, -response_len - 1 : -1].contiguous()
+                    output = output * mask
+
+                return output, id_func
+
+            def loss_func(output):
+                curr_logprobs = output["log_probs"][
+                    :, -response_len - 1 : -1
+                ].contiguous()
+
+                advantages = batch["advantages"]
+                # Prefer recomputed_logprobs (from actor inference), fallback to rollout_logprobs
+                old_logprobs = batch.get("recomputed_logprobs")
+                if old_logprobs is None:
+                    old_logprobs = batch["rollout_logprobs"]
+                ref_logprobs = None
+                if "ref_logprobs" in batch:
+                    ref_logprobs = batch["ref_logprobs"]
+
+                if self.cfg.algorithm.get("importance_sampling_fix", False):
+                    if (
+                        "rollout_logprobs" not in batch
+                        or "recomputed_logprobs" not in batch
+                    ):
+                        raise ValueError(
+                            "importance_sampling_fix requires both rollout_logprobs and recomputed_logprobs"
+                        )
+                    rollout_logprobs = batch["rollout_logprobs"]
+                    recomputed_logprobs = batch["recomputed_logprobs"]
+                    advantages = advantages * torch.clamp(
+                        (recomputed_logprobs - rollout_logprobs).exp(),
+                        max=self.cfg.algorithm.importance_sampling_clip,
+                    )
+
+                mask = batch["response_mask"][:, -response_len:]
+
+                loss, metrics_data = policy_loss(
+                    task_type=self.cfg.runner.task_type,
+                    loss_type=self.cfg.algorithm.loss_type,
+                    loss_agg_func=self.loss_agg_func,
+                    logprobs=curr_logprobs,
+                    old_logprobs=old_logprobs,
+                    advantages=advantages,
+                    clip_ratio_c=self.clip_ratio_c,
+                    clip_ratio_low=self.clip_ratio_low,
+                    clip_ratio_high=self.clip_ratio_high,
+                    loss_mask=mask,
+                    clip_log_ratio_min=self.cfg.algorithm.get(
+                        "clip_log_ratio_min", None
+                    ),
+                    clip_log_ratio_max=self.cfg.algorithm.get(
+                        "clip_log_ratio_max", None
+                    ),
+                    fast_path_zero_loss_mask=True,
+                )
+
+                entropy_loss = torch.zeros(1, device=loss.device)
+                if self.calculate_entropy:
+                    entropy = output["entropy"][:, -response_len - 1 : -1].contiguous()
+                    entropy_loss = self.loss_agg_func(entropy, mask=mask)
+                    if self.calculate_entropy_loss:
+                        loss = loss - self.cfg.algorithm.entropy_bonus * entropy_loss
+
+                kl_loss = torch.tensor(0.0, device=torch.cuda.current_device())
+                if self.kl_beta > 0 and ref_logprobs is not None:
+                    kld = kl_penalty(curr_logprobs, ref_logprobs, self.kl_penalty_type)
+                    kl_loss = self.loss_agg_func(kld, mask)
+                    loss = loss + kl_loss * self.kl_beta
+
+                # Logging and early stopping according to KL (logp vs ref) or importance ratio (new logp vs old logp).
+                _imp: torch.Tensor = metrics_data["actor/ratio"].clone()
+                torch.distributed.all_reduce(
+                    _imp,
+                    torch.distributed.ReduceOp.AVG,
+                    group=parallel_state.get_data_parallel_group(),
+                )
+
+                # Early stopping.
+                if (
+                    self.cfg.algorithm.early_stop_imp_ratio is not None
+                    and _imp > self.cfg.algorithm.early_stop_imp_ratio
+                ):
+                    self.log_warning(
+                        f"Current importance ratio {_imp.item():.4f} is larger "
+                        f"than early stop threshold {self.cfg.algorithm.early_stop_imp_ratio}. Abandon this microbatch."
+                    )
+                    loss = loss * 0.0
+
+                if self.cfg.algorithm.use_valid_token_scale:
+                    loss_scale = (
+                        mask.sum()
+                        / self.global_valid_token
+                        * parallel_state.get_data_parallel_world_size()
+                        * self.num_microbatches
+                    )
+                    loss *= loss_scale.item()
+
+                # add to log
+                metrics_data.update(
+                    {
+                        "actor/final_loss": loss.detach(),
+                        "actor/entropy_loss": entropy_loss.detach(),
+                        "actor/kl_loss": kl_loss.detach(),
+                    }
+                )
+
+                for k, v in metrics_data.items():
+                    if v is None:
+                        continue
+                    if k in CRITIC_EXPLAINED_VARIANCE_STAT_KEYS:
+                        v = v.detach().clone()
+                        torch.distributed.all_reduce(
+                            v,
+                            op=torch.distributed.ReduceOp.SUM,
+                            group=parallel_state.get_data_parallel_group(),
+                        )
+                        metrics_data[k] = v
+                    else:
+                        metrics_data[k] = average_losses_across_data_parallel_group([v])
+
+                return loss, metrics_data
+
+            return output, loss_func
+
+        return forward_output_and_loss_func
+
+    def _setup_rollout_weight_dst_ranks(self):
+        """Setup destination ranks for token and weight communication.
+
+        Two independent coordinate systems:
+        - transmission (engine_id, rank_in_engine): where to send. From
+          RankMapper. Colocate returns a tuple (single target); disaggregate
+          returns a list of tuples (multiple targets).
+        - sharding (dst_tp_rank, dst_ep_rank, ...): how to slice the weight.
+          Scalar in colocate, list (per-target) in disaggregate.
+        """
+        rank_map = RankMapper.get_actor_rank_to_rollout_rank_map(
+            self.component_placement
+        )
+        self._weight_dst_rank_in_rollout = rank_map[self._rank]
+        placement = self.component_placement
+        enable_dp_lm_head = self.cfg.rollout.get("sglang", {}).get(
+            "enable_dp_lm_head", False
+        )
+
+        if self.rollout_sync_mode == RolloutSyncMode.COLLOCATED:
+            # Single target: (engine_id, rank_in_engine) tuple.
+            _, rank_in_engine = self._weight_dst_rank_in_rollout
+            self.num_weight_targets = 1
+            self.dst_tp_rank = rank_in_engine % placement.rollout_attn_tp_size
+            self.dst_ep_rank = (
+                rank_in_engine % placement.rollout_ep_size
+                if placement.rollout_ep_size > 1
+                else None
+            )
+            self.dst_lm_head_rank = (
+                rank_in_engine if not enable_dp_lm_head else self.dst_tp_rank
+            )
+            self.dst_shared_rank = rank_in_engine
+        else:
+            # Multiple targets: list of (engine_id, rank_in_engine) tuples.
+            rank_in_engine_list = [rank for _, rank in self._weight_dst_rank_in_rollout]
+            self.num_weight_targets = len(rank_in_engine_list)
+            self.dst_tp_rank = [
+                rank % placement.rollout_attn_tp_size for rank in rank_in_engine_list
+            ]
+            self.dst_ep_rank = [
+                (
+                    rank % placement.rollout_ep_size
+                    if placement.rollout_ep_size > 1
+                    else None
+                )
+                for rank in rank_in_engine_list
+            ]
+            self.dst_lm_head_rank = [
+                (rank if not enable_dp_lm_head else tp_rank)
+                for rank, tp_rank in zip(rank_in_engine_list, self.dst_tp_rank)
+            ]
+            self.dst_shared_rank = list(rank_in_engine_list)
+
+        self.log_info(
+            f"Actor rank {self._rank} will send weights to "
+            f"{self._weight_dst_rank_in_rollout} "
+            f"(dst_tp_rank={self.dst_tp_rank}, dst_ep_rank={self.dst_ep_rank}, "
+            f"dst_lm_head_rank={self.dst_lm_head_rank}, "
+            f"dst_shared_rank={self.dst_shared_rank})"
+        )
+
+        # When the only target wants exactly this rank's TP shard, the gather
+        # can clone local shards instead of all_gathering. The decision must be
+        # unanimous, or ranks would disagree about whether a collective runs,
+        # so a single no vote collapses the TP group back to the full gather.
+        # dst_tp_rank is a scalar when collocated, a list when disaggregated,
+        # and an empty list for an actor rank that has no target.
+        if isinstance(self.dst_tp_rank, list):
+            dst_tp_rank_scalar = self.dst_tp_rank[0] if self.dst_tp_rank else None
+        else:
+            dst_tp_rank_scalar = self.dst_tp_rank
+        local_ok = (
+            not self.rollout_weights_reshard.config.enable_dp_attention
+            and self.num_weight_targets == 1
+            and self.rollout_weights_reshard.config.reshard_tp_size
+            == parallel_state.get_tensor_model_parallel_world_size()
+            and dst_tp_rank_scalar == parallel_state.get_tensor_model_parallel_rank()
+        )
+        tp_gather_is_identity = torch.tensor(
+            [1 if local_ok else 0], device=torch.cuda.current_device()
+        )
+        torch.distributed.all_reduce(
+            tp_gather_is_identity,
+            op=torch.distributed.ReduceOp.MIN,
+            group=parallel_state.get_tensor_model_parallel_group(),
+        )
+        self.rollout_weights_reshard.set_tp_gather_is_identity(
+            bool(tp_gather_is_identity.item())
+        )
+
+    def divide_model_to_bucket(self):
+        model_bucket_list = self.rollout_weights_reshard.divide_model_to_bucket(
+            self.model
+        )
+        return model_bucket_list
+
+    def sync_model_to_rollout(self):
+        """
+        Sync the model's full state dict to the rollout worker.
+        """
+        if self.recreate_nccl_groups:
+            nccl_group_recreate()
+        if not self.is_running:
+            return
+        assert hasattr(self, "num_weight_targets"), (
+            "num_weight_targets missing — sync_model_to_rollout requires "
+            "init_worker_customize() to have run _setup_rollout_weight_dst_ranks()"
+        )
+
+        # ensure weights are on GPU before reshard
+        with self.device_lock:
+            self.onload_model_weights_and_grad(load_grad=False)
+
+        model_bucket_list = self.divide_model_to_bucket()
+        if not hasattr(self, "sync_model_bucket_length"):
+            self.sync_model_bucket_length = len(model_bucket_list)
+        else:
+            assert self.sync_model_bucket_length == len(model_bucket_list), (
+                f"last sync_model_bucket_length {self.sync_model_bucket_length} don't equal now the len(model_bucket_list) {len(model_bucket_list)}"
+            )
+            assert self.sync_model_bucket_length != 0, (
+                "error the self.sync_model_bucket_length is 0"
+            )
+
+        self.model_state_offload_optimizer_and_grad()
+
+        # send bucket size
+        # Bucket-outer, target-inner: gather once per bucket, then narrow
+        # locally per target. The sent buffers hold views into full_sd, so
+        # prev_full_sd keeps it alive until the next bucket's wait.
+        send_handles = []
+        prev_full_sd = None
+        for bucket_idx, bucket_weight in enumerate(model_bucket_list):
+            for send_handle in send_handles:
+                send_handle.wait()
+            send_handles = []
+            prev_full_sd = None
+
+            # Every rank enters the gather: its collectives run on the TP / EP /
+            # PP groups, which a rank with no rollout target still belongs to.
+            # Only the narrow and the send depend on having a target.
+            full_sd = self.rollout_weights_reshard.gather_full_model(bucket_weight)
+            if self.num_weight_targets > 0:
+                if self.rollout_sync_mode == RolloutSyncMode.COLLOCATED:
+                    buffer = self.rollout_weights_reshard.narrow_to_target(
+                        full_sd,
+                        self.dst_tp_rank,
+                        self.dst_ep_rank,
+                        dst_lm_head_rank=self.dst_lm_head_rank,
+                        dst_shared_rank=self.dst_shared_rank,
+                    )
+                    buffer = {k: reduce_tensor(v) for k, v in buffer.items()}
+                    if bucket_idx == 0:
+                        buffer["bucket_length"] = torch.tensor(
+                            [len(model_bucket_list)],
+                            device=torch.cuda.current_device(),
+                        )
+                    send_handle = self.send(
+                        buffer,
+                        self.rollout_group_name,
+                        self._weight_dst_rank_in_rollout,
+                        async_op=True,
+                    )
+                    send_handles.append(send_handle)
+                    del buffer
+                else:
+                    # Disaggregate: narrow and send per target.
+                    for target_idx in range(self.num_weight_targets):
+                        buffer = self.rollout_weights_reshard.narrow_to_target(
+                            full_sd,
+                            self.dst_tp_rank[target_idx],
+                            self.dst_ep_rank[target_idx],
+                            dst_lm_head_rank=self.dst_lm_head_rank[target_idx],
+                            dst_shared_rank=self.dst_shared_rank[target_idx],
+                        )
+                        if bucket_idx == 0:
+                            buffer["bucket_length"] = torch.tensor(
+                                [len(model_bucket_list)],
+                                device=torch.cuda.current_device(),
+                            )
+                        send_handle = self.send(
+                            buffer,
+                            self.rollout_group_name,
+                            self._weight_dst_rank_in_rollout[target_idx],
+                            async_op=True,
+                        )
+                        send_handles.append(send_handle)
+                        del buffer
+                # Keeping one bucket's full_sd alive into the next bucket
+                # overlaps communication with the next gather, at a peak of
+                # two full_sd that bucket_capacity budgets for. A rank with
+                # no target has no send to anchor, so it skips this anchor
+                # and the del below frees its bucket right away.
+                prev_full_sd = full_sd
+            del full_sd
+
+        for send_handle in send_handles:
+            send_handle.wait()
+        # Release the last bucket's full_sd, now that its sends are done.
+        del send_handles, prev_full_sd
+
+        if (
+            self.placement_mode == PlacementMode.COLLOCATED
+            or self.use_pre_process_policy
+        ):
+            if self.offload_weight:
+                self.offload_model_weights_and_grad(
+                    offload_grad=False, offload_weight=True
+                )
+                self.is_weight_offloaded = True
+
+    def model_state_offload_optimizer_and_grad(self):
+        if not self.is_running:
+            return
+        if (
+            self.placement_mode == PlacementMode.COLLOCATED
+            or self.use_pre_process_policy
+        ):
+            if self.offload_optimizer:
+                self.offload_megatron_optimizer()
+                self.is_optimizer_offloaded = True
+            self.offload_model_weights_and_grad(
+                offload_grad=self.offload_grad, offload_weight=False
+            )
+        else:
+            assert self.placement_mode in [
+                PlacementMode.DISAGGREGATED,
+                PlacementMode.AUTO,
+            ], "Unsupported placement mode for sending weights."
+            assert isinstance(self._weight_dst_rank_in_rollout, list), (
+                f"In disaggregated mode, weight_dst_rank_in_rollout should be a list of ranks, got {type(self._weight_dst_rank_in_rollout)}"
+            )

@@ -1,0 +1,134 @@
+# Value-labeled RECAP fine-tuning over exactly 960 PiperX episodes:
+#   600 scripted demonstrations
+#   227 successful + 73 failed policy rollouts (the original second batch of 300)
+#   60 new rollouts from the all-positive stage-one checkpoint
+
+paths:
+  pi05_checkpoint: /home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+  value_checkpoint: /home/ajifang/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited/checkpoints/step_003000/pi05_value.pt
+  initial_policy_checkpoint: /home/ajifang/rlinf-experiments/piperx_advantage_stage1_all_true_edited/checkpoints/global_step_3000/actor
+  norm_stats: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+  output_dir: /home/ajifang/rlinf-experiments/piperx_advantage_value_binary_960_edited
+  label_report: /home/ajifang/rlinf-experiments/piperx_advantage_value_binary_960_labels_edited.json
+
+data:
+  sources:
+    - name: demonstrations_600
+      path: /home/ajifang/genesis-world/vla/stacking/data/all6_100_20260920_223136_lerobot
+      returns_type: sft
+      expected_episodes: 600
+      episode_start: 0
+      episode_stop: 600
+    - name: second_rollout_successes_227
+      path: /home/ajifang/genesis-world/vla/stacking/data/pi05_positive_227plus26_lerobot
+      returns_type: sft
+      expected_episodes: 227
+      episode_start: 0
+      episode_stop: 227
+    - name: second_rollout_failures_73
+      path: /home/ajifang/genesis-world/vla/stacking/data/pi05_policy_failures_73_lerobot
+      returns_type: rollout
+      expected_episodes: 73
+      episode_start: 0
+      episode_stop: 73
+    - name: new_rollouts_60
+      path: /home/ajifang/genesis-world/vla/stacking/data/piperx_advantage_rollout_60_adv3000_seed30000_lerobot
+      returns_type: rollout
+      expected_episodes: 60
+      episode_start: 0
+      episode_stop: 60
+  expected_total_episodes: 960
+  returns_tag: piperx_value_binary_960_edited
+  advantage_tag: piperx_value_binary_960_edited
+  cameras: [third_person, wrist]
+  camera_keys:
+    third_person: observation.images.image
+    wrist: observation.images.image2
+  state_key: observation.state
+  num_workers: 4
+  video_tolerance_s: 0.03
+  video_cache_size: 32
+  prompt_suffix: "\nAdvantage: positive"
+
+reward:
+  step_reward: -1.0
+  success_terminal_reward: 0.0
+  failure_terminal_reward: -300.0
+  gamma: 1.0
+
+normalization:
+  # This is the same global minimum used to train the current value VLM.
+  return_min: -1499.0
+  return_max: 0.0
+
+value_model:
+  pooling: mean_token
+  hidden_size: 2048
+  head_hidden_size: 1024
+  dropout: 0.0
+  num_bins: 201
+  v_min: -1.0
+  v_max: 0.0
+
+advantage:
+  lookahead_steps: 10
+  discount_next_value: true
+  positive_fraction: 0.30
+  # Match RLinf RECAP: every SFT frame is positive regardless of its TD score.
+  force_sft_positive: true
+
+inference:
+  device: cuda
+  batch_size: 128
+  num_workers: 4
+  pin_memory: true
+  checkpoint_every_batches: 10
+
+advantage_conditioning:
+  # label 1 -> instruction + positive suffix; label 0 -> original instruction.
+  mode: positive_only
+  unconditional_probability: 0.0
+
+model:
+  model_type: openpi_rlinf
+  precision: fp32
+  pi05: true
+  is_lora: true
+  lora_rank: 32
+  use_proprio: true
+  num_action_chunks: 50
+  action_dim: 7
+  num_steps: 10
+  add_value_head: false
+  openpi:
+    task: sft
+    config_name: pi05_piperx
+    action_horizon: 50
+    action_chunk: 50
+    action_env_dim: 7
+    model_action_dim: 32
+    max_token_len: 200
+    discrete_state_input: true
+    paligemma_variant: gemma_2b_lora
+    action_expert_variant: gemma_300m_lora
+    num_images_in_input: 2
+    lora_train_vision: false
+    lora_train_action_projections: true
+  openpi_data:
+    norm_stats_path: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+
+training:
+  seed: 42
+  device: cuda
+  batch_size: 8
+  max_steps: 5000
+  learning_rate: 2.5e-5
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_eps: 1.0e-8
+  weight_decay: 1.0e-10
+  grad_clip_norm: 1.0
+  warmup_steps: 1000
+  min_learning_rate: 2.5e-6
+  log_every: 10
+  save_only_final: true

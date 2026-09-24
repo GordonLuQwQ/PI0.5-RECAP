@@ -1,0 +1,27 @@
+env_type: real
+total_num_envs: null
+
+auto_reset: False
+ignore_terminations: False
+reward_mode: raw
+wrap_obs_mode: simple
+seed: 0
+group_size: 1
+use_fixed_reset_state_ids: False
+max_steps_per_rollout_epoch: 100
+max_episode_steps: 10000
+keyboard_reward_wrapper: single_stage
+teleop: spacemouse
+main_image_key: wrist_1
+# Keep TCP observations in the absolute robot base frame so the reward-data
+# preprocessor can compare them with target_ee_pose.
+use_relative_frame: False
+
+video_cfg:
+  save_video: False
+  info_on_video: True
+  video_base_dir: ${runner.logger.log_path}/video/train
+
+init_params:
+  id: "PegInsertionEnv-v1"
+  num_envs: null

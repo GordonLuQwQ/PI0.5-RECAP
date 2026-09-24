@@ -1,0 +1,16 @@
+# EDITED: a compact view of the fields used by compute_returns_edited.py.
+# config_edited.yaml is the single source of truth used by the runnable scripts.
+reward:
+  step_reward: -1.0
+  success_terminal_reward: 0.0
+  failure_terminal_reward: -300.0
+  gamma: 1.0
+
+normalization:
+  normalize_to_minus_one_zero: true
+  formula: raw_return / abs(global_return_min)
+  support: [-1.0, 0.0]
+
+value_distribution:
+  num_bins: 201
+  bin_width: 0.005

@@ -1,0 +1,11 @@
+defaults:
+  - piperx_eval_pi05_RTC
+  - _self_
+
+env:
+  eval:
+    rollout_epoch: 2
+    piperx:
+      suite: reversal
+      pairs: [[1, 2], [2, 1]]
+      seeds: [20000]

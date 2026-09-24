@@ -1,0 +1,208 @@
+{
+  "source_urdf": "piper_x_description.before_genesis_fix.urdf",
+  "collision_meshes": [
+    {
+      "link": "base_link",
+      "source": "../meshes/dae/base_Link.dae",
+      "output": "../meshes/collision/base_link_0.obj",
+      "vertices": 303,
+      "faces": 602,
+      "unscaled_bounds_m": [
+        [
+          -0.058517541077163227,
+          -0.040011963832853326,
+          0.0
+        ],
+        [
+          0.040011963832853326,
+          0.040011963832853326,
+          0.08602576248584182
+        ]
+      ]
+    },
+    {
+      "link": "Link1",
+      "source": "../meshes/dae/J1.dae",
+      "output": "../meshes/collision/Link1_0.obj",
+      "vertices": 374,
+      "faces": 744,
+      "unscaled_bounds_m": [
+        [
+          -0.03588471851224018,
+          -0.03675781532085143,
+          -0.04300918027311562
+        ],
+        [
+          0.03599375873504318,
+          0.04075867935151667,
+          0.030097778687453447
+        ]
+      ]
+    },
+    {
+      "link": "Link2",
+      "source": "../meshes/dae/J2.dae",
+      "output": "../meshes/collision/Link2_0.obj",
+      "vertices": 534,
+      "faces": 1064,
+      "unscaled_bounds_m": [
+        [
+          -0.031464965349266016,
+          -0.06481695193328196,
+          -0.04850281709440907
+        ],
+        [
+          0.31652607193571214,
+          0.03171908215239938,
+          0.04850281709440907
+        ]
+      ]
+    },
+    {
+      "link": "Link3",
+      "source": "../meshes/dae/J3.dae",
+      "output": "../meshes/collision/Link3_0.obj",
+      "vertices": 796,
+      "faces": 1588,
+      "unscaled_bounds_m": [
+        [
+          -0.029983375250808075,
+          -0.0363985915836027,
+          -0.03996756596737194
+        ],
+        [
+          0.3012725014443305,
+          0.030010037729378825,
+          0.04076792855271538
+        ]
+      ]
+    },
+    {
+      "link": "Link4",
+      "source": "../meshes/dae/J4.dae",
+      "output": "../meshes/collision/Link4_0.obj",
+      "vertices": 669,
+      "faces": 1334,
+      "unscaled_bounds_m": [
+        [
+          -0.023482516406806875,
+          -0.0812616301067095,
+          -0.034917867531214064
+        ],
+        [
+          0.10807009593437655,
+          0.029984634068389804,
+          0.0309523764233417
+        ]
+      ]
+    },
+    {
+      "link": "Link5",
+      "source": "../meshes/dae/J5.dae",
+      "output": "../meshes/collision/Link5_0.obj",
+      "vertices": 593,
+      "faces": 1182,
+      "unscaled_bounds_m": [
+        [
+          -0.02852888272565135,
+          -0.0285109960077623,
+          -0.035868330975015184
+        ],
+        [
+          0.034235576805929924,
+          0.028531383400243193,
+          0.029364819855790536
+        ]
+      ]
+    },
+    {
+      "link": "Link6",
+      "source": "../meshes/dae/gripper_base_100_v2.dae",
+      "output": "../meshes/collision/Link6_0.obj",
+      "vertices": 237,
+      "faces": 470,
+      "unscaled_bounds_m": [
+        [
+          -0.1045841207479397,
+          -0.009818198979044401,
+          -0.032722332018341786
+        ],
+        [
+          0.10963132644364014,
+          0.0848663638358369,
+          0.06519045337855618
+        ]
+      ]
+    },
+    {
+      "link": "Link7",
+      "source": "../meshes/dae/J7.dae",
+      "output": "../meshes/collision/Link7_0.obj",
+      "vertices": 116,
+      "faces": 228,
+      "unscaled_bounds_m": [
+        [
+          -0.027999989688396454,
+          -0.07153183221817017,
+          -0.02449995093047619
+        ],
+        [
+          0.027999989688396454,
+          0.004968105815351009,
+          0.0
+        ]
+      ]
+    },
+    {
+      "link": "Link8",
+      "source": "../meshes/dae/J8_collision_clean.dae",
+      "output": "../meshes/collision/Link8_0.obj",
+      "vertices": 116,
+      "faces": 228,
+      "unscaled_bounds_m": [
+        [
+          -0.027999989688396454,
+          -0.004968105815351009,
+          -0.02449995093047619
+        ],
+        [
+          0.027999989688396454,
+          0.07153183221817017,
+          0.0
+        ]
+      ]
+    }
+  ],
+  "original_link6_inertial_xml": "<inertial>\n      <origin xyz=\"4.4377E-07 -1.9614E-05 0.031556\" rpy=\"0 0 0\" />\n      <mass value=\"0.0061311\" />\n      <inertia ixx=\"5.1682E-07\" ixy=\"9.18E-25\" ixz=\"1.1291E-22\" iyy=\"5.1683E-07\" iyz=\"2.6088E-09\" izz=\"9.833E-07\" />\n    </inertial>\n    ",
+  "estimated_link6_inertial": {
+    "mass_kg": 0.2996291790068612,
+    "center_of_mass_in_link_m": [
+      -0.0001023031556278158,
+      -0.0006870336902559261,
+      0.03304263750693403
+    ],
+    "inertia_at_com_in_link_axes_kg_m2": [
+      [
+        0.00018498835815509385,
+        -2.5739094116673014e-06,
+        -8.008006815595488e-07
+      ],
+      [
+        -2.5739094116673014e-06,
+        0.00036542883872064957,
+        2.2481248400339673e-06
+      ],
+      [
+        -8.008006815595488e-07,
+        2.2481248400339673e-06,
+        0.00031672360207743634
+      ]
+    ],
+    "effective_density_kg_m3": 1500.0,
+    "cad_volume_m3": 0.00019975278600457412,
+    "closed_cad_components": 14,
+    "method": "Sum of welded, closed CAD solids at uniform effective density, including URDF scale and origin",
+    "limitations": "Simulation estimate, not measured or manufacturer-calibrated. CAD components are summed; overlapping solids are not unioned. Material density differences are not modeled.",
+    "source_mesh": "../meshes/dae/gripper_base_100_v2.dae"
+  }
+}

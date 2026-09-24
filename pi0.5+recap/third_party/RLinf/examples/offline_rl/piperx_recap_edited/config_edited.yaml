@@ -1,0 +1,76 @@
+# EDITED: PiperX RECAP value model backed by the already fine-tuned Pi0.5 VLM.
+
+paths:
+  rlinf_root: /home/ajifang/RLinf
+  pi05_checkpoint: /home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+  norm_stats: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+  output_dir: /home/ajifang/rlinf-experiments/piperx_recap_value_edited
+
+data:
+  # This successful demonstration dataset is ready now.
+  datasets:
+    - path: /home/ajifang/genesis-world/vla/stacking/data/all6_100_20260920_223136_lerobot
+      type: sft
+      weight: 1.0
+
+    # Failed policy prefixes exported from the existing dual-view IK-correction
+    # collection. The export command in README.md creates this directory.
+    - path: /home/ajifang/genesis-world/vla/stacking/data/pi05_recap_failure_prefixes_26_lerobot
+      type: rollout
+      weight: 1.0
+
+  camera_keys:
+    third_person: observation.images.image
+    wrist: observation.images.image2
+  state_key: observation.state
+  task_key: task
+  returns_tag: piperx_fail300_edited
+  require_rollout_dataset: true
+  video_tolerance_s: 0.03
+  video_cache_size: 32
+
+reward:
+  # Same values as the RLinf RECAP example.
+  step_reward: -1.0
+  success_terminal_reward: 0.0
+  failure_terminal_reward: -300.0
+  gamma: 1.0
+
+normalization:
+  # Same normalization as RLinf ReturnNormalizer when this is true:
+  # normalized_return = raw_return / abs(global_return_min).
+  normalize_to_minus_one_zero: true
+  return_min: null  # computed globally from all returns sidecars
+  return_max: 0.0
+  # RLinf ReturnNormalizer does not clip; the categorical target projection
+  # performs the support clamp later.
+  clip: false
+
+value_model:
+  # Load a second model instance from pi05_checkpoint. Continue tuning only
+  # its trained PaliGemma expert-0 LoRA, while the policy/action expert stays
+  # frozen. The full vision encoder can be enabled separately if desired.
+  train_pi05_vlm_lora: true
+  train_vision_encoder: false
+  gradient_checkpointing: true
+  pooling: mean_token
+  hidden_size: 2048
+  head_hidden_size: 1024
+  dropout: 0.0
+  num_bins: 201
+  v_min: -1.0
+  v_max: 0.0
+
+training:
+  seed: 42
+  device: cuda
+  batch_size: 2
+  num_workers: 0
+  pin_memory: true
+  max_steps: 8000
+  learning_rate: 1.0e-4
+  vlm_learning_rate: 2.5e-5
+  weight_decay: 1.0e-10
+  grad_clip_norm: 1.0
+  log_every: 20
+  save_only_final: true
