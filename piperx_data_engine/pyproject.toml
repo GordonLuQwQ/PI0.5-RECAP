@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piperx-genesis-data-engine"
+version = "1.0.0"
+description = "PiperX Genesis data collection, policy rollout, and IK correction tools"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.scripts]
+piperx-collect = "piperx_data_engine.collect:main"
+piperx-export-lerobot = "piperx_data_engine.export_lerobot:main"
+piperx-export-policy-rollouts = "piperx_data_engine.export_policy_rollouts_lerobot:main"
+piperx-recover-policy-failures = "piperx_data_engine.recover_policy_failures:main"
+piperx-export-recovery = "piperx_data_engine.export_recovery_lerobot:main"
+piperx-export-recovery-preview = "piperx_data_engine.export_recovery_preview:main"
+piperx-export-policy-failures = "piperx_data_engine.export_policy_failures_lerobot:main"
+piperx-export-positive-recap = "piperx_data_engine.export_positive_recap_lerobot:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["piperx_data_engine*"]
+
+[tool.setuptools.package-data]
+piperx_data_engine = [
+    "assets/piper_x_description/*.md",
+    "assets/piper_x_description/urdf/*.urdf",
+    "assets/piper_x_description/urdf/*.json",
+    "assets/piper_x_description/meshes/dae/*.dae",
+    "assets/piper_x_description/meshes/collision/*.obj",
+]

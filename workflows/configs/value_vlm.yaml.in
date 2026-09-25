@@ -1,0 +1,62 @@
+paths:
+  rlinf_root: "${RLINF_ROOT}"
+  pi05_checkpoint: "${SFT_POLICY_CHECKPOINT}"
+  norm_stats: "${NORM_STATS}"
+  output_dir: "${VALUE_OUTPUT}"
+
+data:
+  datasets:
+    - path: "${DEMO_DATASET}"
+      type: sft
+      weight: 1.0
+    - path: "${FAILURE_DATASET}"
+      type: rollout
+      weight: 1.0
+  camera_keys:
+    third_person: observation.images.image
+    wrist: observation.images.image2
+  state_key: observation.state
+  task_key: task
+  returns_tag: piperx_value_demo_and_failures
+  require_rollout_dataset: true
+  video_tolerance_s: 0.03
+  video_cache_size: 32
+
+reward:
+  step_reward: -1.0
+  success_terminal_reward: 0.0
+  failure_terminal_reward: -300.0
+  gamma: 1.0
+
+normalization:
+  normalize_to_minus_one_zero: true
+  return_min: null
+  return_max: 0.0
+  clip: false
+
+value_model:
+  train_pi05_vlm_lora: true
+  train_vision_encoder: false
+  gradient_checkpointing: true
+  pooling: mean_token
+  hidden_size: 2048
+  head_hidden_size: 1024
+  dropout: 0.0
+  num_bins: 201
+  v_min: -1.0
+  v_max: 0.0
+
+training:
+  seed: 42
+  device: cuda
+  batch_size: ${VALUE_BATCH_SIZE}
+  num_workers: ${VALUE_NUM_WORKERS}
+  pin_memory: true
+  max_steps: ${VALUE_STEPS}
+  learning_rate: 1.0e-4
+  vlm_learning_rate: 2.5e-5
+  weight_decay: 1.0e-10
+  grad_clip_norm: 1.0
+  log_every: 20
+  checkpoint_steps: ${VALUE_CHECKPOINT_STEPS}
+  resume_from: ${VALUE_RESUME_FROM}

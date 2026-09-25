@@ -1,0 +1,61 @@
+diff --git a/genesis/engine/solvers/rigid/collider/collider.py b/genesis/engine/solvers/rigid/collider/collider.py
+index 0a044d90..c6f28bcc 100644
+--- a/genesis/engine/solvers/rigid/collider/collider.py
++++ b/genesis/engine/solvers/rigid/collider/collider.py
+@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
+ import numpy as np
+ import torch
+ import trimesh
++from scipy.optimize import linprog
+ 
+ import genesis as gs
+ import genesis.engine.solvers.rigid.rigid_solver as rigid_solver
+@@ -51,6 +52,36 @@ NEUTRAL_COLLISION_RES_ABS = 0.01
+ NEUTRAL_COLLISION_RES_REL = 0.05
+ 
+ 
++def _convex_meshes_overlap(mesh_a: trimesh.Trimesh, mesh_b: trimesh.Trimesh) -> bool:
++    """Confirm a neutral-pose voxel overlap using the convex meshes' face planes.
++
++    Coarse voxels can bridge a real clearance and permanently disable a valid
++    self-collision pair. The largest ball inside both convex polyhedra has a
++    positive radius only when their interiors overlap. Center and scale the
++    problem so the tolerance does not depend on world position or asset units.
++    The caller has already shrunk both meshes to allow touching joint surfaces.
++    """
++    bounds = np.stack((mesh_a.bounds, mesh_b.bounds))
++    lower, upper = bounds[:, 0].min(axis=0), bounds[:, 1].max(axis=0)
++    scale = float(np.max(upper - lower))
++    if scale == 0.0:
++        return False
++    center = (lower + upper) / 2.0
++    normals = np.concatenate((mesh_a.face_normals, mesh_b.face_normals))
++    points = np.concatenate((mesh_a.triangles[:, 0], mesh_b.triangles[:, 0]))
++    offsets = np.einsum("ij,ij->i", normals, (points - center) / scale)
++    result = linprog(
++        c=(0.0, 0.0, 0.0, -1.0),
++        A_ub=np.column_stack((normals, np.ones(len(normals)))),
++        b_ub=offsets,
++        bounds=[(None, None)] * 4,
++        method="highs",
++    )
++    if not result.success:
++        raise RuntimeError(f"Could not confirm neutral convex-mesh overlap: {result.message}")
++    return bool(result.x[3] > 1e-9)
++
++
+ class Collider:
+     def __init__(self, rigid_solver: "RigidSolver"):
+         self._solver = rigid_solver
+@@ -509,7 +540,10 @@ class Collider:
+                         )
+                         coords_a = voxels_a.indices_to_points(np.argwhere(voxels_a.matrix))
+                         coords_b = voxels_b.indices_to_points(np.argwhere(voxels_b.matrix))
+-                        if voxels_a.is_filled(coords_b).any() or voxels_b.is_filled(coords_a).any():
++                        overlap = voxels_a.is_filled(coords_b).any() or voxels_b.is_filled(coords_a).any()
++                        if overlap and geom_is_convex[i_ga] and geom_is_convex[i_gb]:
++                            overlap = _convex_meshes_overlap(mesh_a, mesh_b)
++                        if overlap:
+                             self_colliding_pairs.append((i_ga, i_gb))
+                             valid[idx] = False
+                             continue

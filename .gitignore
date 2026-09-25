@@ -1,0 +1,9 @@
+artifacts/
+workflows/generated/
+workflows/local.env
+data/*
+!data/README.md
+ckpts/*
+!ckpts/README.md
+**/__pycache__/
+*.py[cod]

@@ -1,0 +1,64 @@
+paths:
+  base_pi05_checkpoint: "${SFT_POLICY_CHECKPOINT}"
+  norm_stats: "${NORM_STATS}"
+  dataset: "${POSITIVE_DATASET}"
+  output_dir: "${POSITIVE_POLICY_OUTPUT}"
+
+data:
+  cameras: [third_person, wrist]
+  num_workers: ${POLICY_NUM_WORKERS}
+  video_tolerance_s: 0.03
+  video_cache_size: 32
+  advantage_tag: piperx_all_true_edited
+  prompt_suffix: "\nAdvantage: positive"
+  require_all_true: true
+  expected_policy_success_episodes: ${POLICY_SUCCESS_EPISODES}
+  expected_expert_suffix_episodes: ${CORRECTION_EPISODES}
+
+advantage_conditioning:
+  mode: positive_only
+  unconditional_probability: 0.0
+
+model:
+  model_type: openpi_rlinf
+  precision: fp32
+  pi05: true
+  is_lora: true
+  lora_rank: 32
+  use_proprio: true
+  num_action_chunks: 50
+  action_dim: 7
+  num_steps: 10
+  add_value_head: false
+  openpi:
+    task: sft
+    config_name: pi05_piperx
+    action_horizon: 50
+    action_chunk: 50
+    action_env_dim: 7
+    model_action_dim: 32
+    max_token_len: 200
+    discrete_state_input: true
+    paligemma_variant: gemma_2b_lora
+    action_expert_variant: gemma_300m_lora
+    num_images_in_input: 2
+    lora_train_vision: false
+    lora_train_action_projections: true
+  openpi_data:
+    norm_stats_path: "${NORM_STATS}"
+
+training:
+  seed: 42
+  device: cuda
+  batch_size: ${POLICY_BATCH_SIZE}
+  max_steps: ${POSITIVE_POLICY_STEPS}
+  learning_rate: 2.5e-5
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_eps: 1.0e-8
+  weight_decay: 1.0e-10
+  grad_clip_norm: 1.0
+  warmup_steps: ${POLICY_WARMUP_STEPS}
+  min_learning_rate: 2.5e-6
+  log_every: 10
+  save_only_final: true
