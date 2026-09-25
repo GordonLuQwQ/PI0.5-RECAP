@@ -1,7 +1,6 @@
 # Bundled PiperX asset
 
-The source model is from `agilexrobotics/piper_isaac_sim`, commit
-`8e1f88fdb7afca49c40e9a0c1c01cc588e86f0d2`.
+The source model is from `agilexrobotics/piper_isaac_sim`.
 
 This submission includes only the URDF and meshes it references. Mesh paths are
 relative to the URDF, and the collision geometry is stored as closed convex OBJ

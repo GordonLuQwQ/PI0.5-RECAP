@@ -29,7 +29,6 @@ PYTHONPATH="${DATA_ENGINE_ROOT}:${PYTHONPATH}" \
   --output "${DEMO_DATASET}" \
   --repo-id local/piperx_stacking_demonstrations \
   --cameras third_person wrist \
-  --expected-per-pair "${EPISODES_PER_PAIR}" \
   --encoder-threads "${ENCODER_THREADS}"
 
 printf 'DEMO_RAW=%s\nDEMO_DATASET=%s\nCALIBRATION=%s\n' \

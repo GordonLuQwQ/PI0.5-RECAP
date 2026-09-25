@@ -61,4 +61,4 @@ cd "${RLINF_ROOT}"
   "runner.logger.experiment_name=${SFT_EXPERIMENT}"
 
 echo "NORM_STATS=${NORM_STATS}"
-echo "Set SFT_POLICY_CHECKPOINT to the saved .../checkpoints/global_step_${SFT_STEPS}/actor directory."
+echo "SFT_POLICY_CHECKPOINT=${SFT_LOG_ROOT}/${SFT_EXPERIMENT}/checkpoints/global_step_${SFT_STEPS}/actor"

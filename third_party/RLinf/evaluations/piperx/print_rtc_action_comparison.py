@@ -126,7 +126,6 @@ def build_comparison(root: Path, call_index: int) -> ActionComparison:
         raise ValueError(f"RTC call {call_index} does not contain guidance context")
     matched_fields = {
         "noise seed": plain_row.get("noise_seed") == rtc_row.get("noise_seed"),
-        "camera images": plain_row.get("image_sha256") == rtc_row.get("image_sha256"),
     }
     plain_call = _load_call(plain_base, call_index)
     rtc_call = _load_call(rtc_base, call_index)

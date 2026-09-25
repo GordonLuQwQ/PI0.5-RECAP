@@ -1,21 +1,21 @@
 # EDITED: PiperX RECAP value model backed by the already fine-tuned Pi0.5 VLM.
 
 paths:
-  rlinf_root: /home/ajifang/RLinf
-  pi05_checkpoint: /home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
-  norm_stats: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
-  output_dir: /home/ajifang/rlinf-experiments/piperx_recap_value_edited
+  rlinf_root: /path/to/RLinf
+  pi05_checkpoint: /path/to/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+  norm_stats: /path/to/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+  output_dir: /path/to/rlinf-experiments/piperx_recap_value_edited
 
 data:
   # This successful demonstration dataset is ready now.
   datasets:
-    - path: /home/ajifang/genesis-world/vla/stacking/data/all6_100_20260920_223136_lerobot
+    - path: /path/to/genesis-world/vla/stacking/data/all6_100_20260920_223136_lerobot
       type: sft
       weight: 1.0
 
     # Failed policy prefixes exported from the existing dual-view IK-correction
     # collection. The export command in README.md creates this directory.
-    - path: /home/ajifang/genesis-world/vla/stacking/data/pi05_recap_failure_prefixes_26_lerobot
+    - path: /path/to/genesis-world/vla/stacking/data/pi05_recap_failure_prefixes_26_lerobot
       type: rollout
       weight: 1.0
 

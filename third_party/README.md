@@ -40,7 +40,7 @@ The upstream installation reference is available in [`RLinf/docs/source-en/rst_s
 
 ## Project-specific RLinf changes
 
-The bundled fork adds the following functionality on top of the pinned upstream revision:
+The bundled fork adds the following functionality to RLinf:
 
 1. A PiperX LeRobot data configuration with `third_person` and `wrist` RGB inputs, a 7-dimensional robot state, and 7-dimensional absolute joint/gripper actions.
 2. A PiperX Genesis environment adapter and local socket bridge between the RLinf Python 3.11 process and the separate Genesis process.
@@ -57,25 +57,3 @@ The main integration points are:
 - [`RLinf/examples/sft/config/piperx_sft_openpi_pi05_rlinf.yaml`](RLinf/examples/sft/config/piperx_sft_openpi_pi05_rlinf.yaml): PiperX Pi0.5 supervised fine-tuning configuration.
 - [`RLinf/evaluations/piperx/`](RLinf/evaluations/piperx/): Genesis bridge, evaluation protocol, RTC execution, reports, and videos.
 - [`RLinf/examples/offline_rl/piperx_recap_edited/`](RLinf/examples/offline_rl/piperx_recap_edited/): custom value-VLM and advantage-conditioned VLA pipeline.
-
-Installing a fresh, unmodified RLinf checkout does not provide these integrations. Use the bundled fork, or reproduce the same changes against the pinned upstream commit.
-
-## Models, statistics, and datasets
-
-Model weights and generated data are intentionally excluded from `third_party/`. They must be downloaded or generated separately:
-
-- the RLinf-compatible Pi0.5 base checkpoint;
-- PiperX state/action `norm_stats.json`;
-- LeRobot training datasets;
-- value-VLM and policy checkpoints produced by training;
-- Genesis/PiperX assets supplied by the data-engine package.
-
-Several historical experiment YAML files preserve the original machine's absolute `/home/ajifang/...` paths for provenance. The repository-level numbered workflows do not invoke those files: stages 6–8 render new YAML from `workflows/configs/*.yaml.in`, and stages 2–4 override or inject every checkpoint, dataset, normalization-statistics, Genesis, calibration, and output path. Use the numbered workflows for portable runs.
-
-Training and inference use RLinf's PyTorch `openpi_rlinf` implementation. The separate `Physical-Intelligence/openpi` checkout used during early experiments is not required. RLinf's installer also installs its supported OpenPI package into `RLinf/.venv` for tokenization, data transforms, and configuration; this does not switch training to JAX.
-
-
-
-This separation avoids forcing Genesis and RLinf/OpenPI into one dependency environment. Run RLinf commands from `third_party/RLinf` with its `.venv`; run data-engine and Genesis scene commands with the environment documented by the data-engine package.
-
-For the experiment-specific workflow, see the bundled [PiperX RECAP documentation](RLinf/examples/offline_rl/piperx_recap_edited/README.md) and [PiperX evaluation documentation](RLinf/evaluations/piperx/README.md).

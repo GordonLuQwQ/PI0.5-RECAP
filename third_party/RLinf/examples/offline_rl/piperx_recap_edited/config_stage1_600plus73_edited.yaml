@@ -1,14 +1,14 @@
 # EDITED: train the Pi0.5-backed value function on 600 demos and all 73 failures.
 
 paths:
-  rlinf_root: /home/ajifang/RLinf
-  pi05_checkpoint: /home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
-  norm_stats: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
-  output_dir: /home/ajifang/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited
+  rlinf_root: /path/to/RLinf
+  pi05_checkpoint: /path/to/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+  norm_stats: /path/to/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+  output_dir: /path/to/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited
 
 data:
   datasets:
-    - path: /home/ajifang/genesis-world/vla/stacking/data/pi05_value_600success_73failure_lerobot
+    - path: /path/to/genesis-world/vla/stacking/data/pi05_value_600success_73failure_lerobot
       type: rollout
       weight: 1.0
   camera_keys:

@@ -1,10 +1,10 @@
 # EDITED: all-true advantage stage for the native OpenPI_RLinf Pi0.5.
 
 paths:
-  base_pi05_checkpoint: /home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
-  norm_stats: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
-  dataset: /home/ajifang/genesis-world/vla/stacking/data/pi05_positive_227plus26_lerobot
-  output_dir: /home/ajifang/rlinf-experiments/piperx_advantage_stage1_all_true_edited
+  base_pi05_checkpoint: /path/to/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+  norm_stats: /path/to/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+  dataset: /path/to/genesis-world/vla/stacking/data/pi05_positive_227plus26_lerobot
+  output_dir: /path/to/rlinf-experiments/piperx_advantage_stage1_all_true_edited
 
 data:
   cameras: [third_person, wrist]
@@ -50,7 +50,7 @@ model:
     lora_train_vision: false
     lora_train_action_projections: true
   openpi_data:
-    norm_stats_path: /home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
+    norm_stats_path: /path/to/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json
 
 training:
   seed: 42

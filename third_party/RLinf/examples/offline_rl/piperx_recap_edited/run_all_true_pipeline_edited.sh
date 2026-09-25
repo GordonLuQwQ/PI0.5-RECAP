@@ -3,21 +3,21 @@
 
 set -Eeuo pipefail
 
-RLINF_ROOT=/home/ajifang/RLinf
-GENESIS_ROOT=/home/ajifang/genesis-world
-RLINF_PY=/home/ajifang/RLinf/.venv/bin/python
-GENESIS_PY=/home/ajifang/miniconda3/bin/python
+RLINF_ROOT=/path/to/RLinf
+GENESIS_ROOT=/path/to/genesis-world
+RLINF_PY=/path/to/RLinf/.venv/bin/python
+GENESIS_PY=/path/to/miniconda3/bin/python
 EDITED_DIR=${RLINF_ROOT}/examples/offline_rl/piperx_recap_edited
 POLICY_CONFIG=${EDITED_DIR}/positive_policy_edited.yaml
 
 INITIAL_DATA=${GENESIS_ROOT}/vla/stacking/data/all6_100_20260920_223136_lerobot
-ROLLOUTS=/home/ajifang/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/policy_rollouts_300_pi05_step5000/results_no_rtc_parallel25_50_per_task_timeout60s_fast/standard
+ROLLOUTS=/path/to/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/policy_rollouts_300_pi05_step5000/results_no_rtc_parallel25_50_per_task_timeout60s_fast/standard
 CORRECTIONS=${GENESIS_ROOT}/vla/stacking/data/pi05_ik_corrections_35_fixed_20260923_204117_raw
 FAILURE_DATA=${GENESIS_ROOT}/vla/stacking/data/pi05_policy_failures_73_lerobot
 VALUE_DATA=${GENESIS_ROOT}/vla/stacking/data/pi05_value_600success_73failure_lerobot
 POSITIVE_DATA=${GENESIS_ROOT}/vla/stacking/data/pi05_positive_227plus26_lerobot
-VALUE_OUTPUT=/home/ajifang/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited
-POLICY_OUTPUT=/home/ajifang/rlinf-experiments/piperx_advantage_stage1_all_true_edited
+VALUE_OUTPUT=/path/to/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited
+POLICY_OUTPUT=/path/to/rlinf-experiments/piperx_advantage_stage1_all_true_edited
 VALUE_CHECKPOINT=${VALUE_OUTPUT}/checkpoints/step_003000/pi05_value.pt
 POLICY_CHECKPOINT=${POLICY_OUTPUT}/checkpoints/global_step_3000/actor
 
@@ -38,7 +38,7 @@ for required in \
   fi
 done
 
-available_kib=$(df --output=avail /home/ajifang | tail -1 | tr -d ' ')
+available_kib=$(df --output=avail /path/to | tail -1 | tr -d ' ')
 if (( available_kib < 10 * 1024 * 1024 )); then
   echo "At least 10 GiB of free disk space is required; available KiB: ${available_kib}" >&2
   exit 2

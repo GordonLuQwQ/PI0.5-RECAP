@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RLINF_ROOT="/home/ajifang/RLinf"
+RLINF_ROOT="/path/to/RLinf"
 PYTHON_BIN="${RLINF_ROOT}/.venv/bin/python"
 PIPELINE_DIR="${RLINF_ROOT}/examples/offline_rl/piperx_recap_edited"
 CONFIG="${PIPELINE_DIR}/value_binary_960_edited.yaml"

@@ -1652,7 +1652,6 @@ def test_piperx_rtc_action_report_compares_only_matched_inference(tmp_path):
             "rtc_context": False,
             "executed_horizon": None,
             "predicted_delay_steps": None,
-            "image_sha256": {"main_images": "a", "wrist_images": "b"},
         },
         {
             "call": 1,
@@ -1660,7 +1659,6 @@ def test_piperx_rtc_action_report_compares_only_matched_inference(tmp_path):
             "rtc_context": False,
             "executed_horizon": None,
             "predicted_delay_steps": None,
-            "image_sha256": {"main_images": "c", "wrist_images": "d"},
         },
     ]
     rtc_metadata = [dict(row) for row in metadata]

@@ -7,16 +7,16 @@ RTC 调度使用 [RLinf 官方指南](../../docs/source-zh/rst_source/guides/rtc
 当前普通 eval 用以下命令启动，先执行 6 个方向任务各 10 次，共 60 条；随后对红圆柱与蓝方块这一对执行两个方向，各 1 次，共 2 条。
 
 ```bash
-PIPERX_RESULT_ROOT="/home/ajifang/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_standard_h50_chunk10_results" \
-bash /home/ajifang/RLinf/evaluations/piperx/run.sh \
+PIPERX_RESULT_ROOT="/path/to/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_standard_h50_chunk10_results" \
+bash /path/to/RLinf/evaluations/piperx/run.sh \
   'runner.rtc.enabled=False' 'actor.model.num_action_chunks=10'
 ```
 
 上述普通 eval 命令每次预测 50 步，只取前 10 步执行，然后重新观察。`action_horizon=50` 是模型预测长度，命令中的 `num_action_chunks=10` 使 `action_chunk` 同步为 10，即传给环境的动作长度；`num_steps=10` 是模型去噪次数。反归一化后，每个动作有 7 维。RTC 保留完整的 50 步动作缓冲和模型空间历史，并使用 `min_exec_horizon=10`，启动命令为：
 
 ```bash
-PIPERX_RESULT_ROOT="/home/ajifang/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_rtc_exact_h50_exec10_delay14_results" \
-bash /home/ajifang/RLinf/evaluations/piperx/run.sh \
+PIPERX_RESULT_ROOT="/path/to/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_rtc_exact_h50_exec10_delay14_results" \
+bash /path/to/RLinf/evaluations/piperx/run.sh \
   'runner.rtc.enabled=True'
 ```
 
@@ -48,7 +48,7 @@ RLinf 使用 Python 3.11，现有 Genesis 场景使用 Python 3.13，因此 `Pip
 结果保存在 `PIPERX_RESULT_ROOT` 下。上述普通 eval 命令使用 `evaluation_official_standard_h50_chunk10_results/`，当前 RTC 配置使用 `evaluation_official_rtc_exact_h50_exec10_delay14_results/`，两者内部结构相同。原有 RTC 目录保留旧参数的运行记录供对比。
 
 ```text
-/home/ajifang/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_rtc_exact_h50_exec10_delay14_results/
+/path/to/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_official_rtc_exact_h50_exec10_delay14_results/
   watch.html
   standard/summary.json
   standard/watch.html
@@ -73,10 +73,10 @@ bash evaluations/piperx/run_paired_joint_comparison.sh
 
 ```bash
 python evaluations/piperx/print_rtc_action_comparison.py \
-  /home/ajifang/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_rtc_vs_no_rtc_20260922_043905 \
+  /path/to/rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/evaluation_rtc_vs_no_rtc_20260922_043905 \
   --call 1
 ```
 
 脚本先验证两次推理的图像、实测状态和随机噪声一致，再打印每个动作位置的旧 chunk 目标、hard／soft／free 阶段、mask 权重、10 次去噪各自的 guidance 系数、无 RTC 动作、RTC 动作及最终差值。它会从保存的配置识别 `exact` 或旧的 `approx` 模式。exact 模式中的 `guidance_scale × mask_weight` 是进入 VJP 的系数，实际速度修正还取决于 Jacobian；输出中的 `rtc-no_rtc` 是完整去噪后可观测到的净变化。完整结果同时保存为文本、CSV 和 NPZ。环境一旦因先前动作产生分叉，脚本会拒绝比较对应 call，避免把不同观测造成的变化归因于 RTC。
 
-训练入口、各文件职责以及 RLinf 到 Genesis 的完整调用关系见[实验目录说明](../../../rlinf-experiments/pi05_vlm_action_lora_2views_10k_plus5k_20260921/README.md)。RTC 参数含义见 [RTC 指南](../../docs/source-zh/rst_source/guides/rtc.rst)。
+训练入口、各文件职责以及 RLinf 到 Genesis 的完整调用关系见 [RECAP 实验目录说明](../../examples/offline_rl/piperx_recap_edited/README.md)。RTC 参数含义见 [RTC 指南](../../docs/source-zh/rst_source/guides/rtc.rst)。

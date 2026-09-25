@@ -1,5 +1,4 @@
 diff --git a/genesis/engine/solvers/rigid/collider/collider.py b/genesis/engine/solvers/rigid/collider/collider.py
-index 0a044d90..c6f28bcc 100644
 --- a/genesis/engine/solvers/rigid/collider/collider.py
 +++ b/genesis/engine/solvers/rigid/collider/collider.py
 @@ -13,6 +13,7 @@ from typing import TYPE_CHECKING

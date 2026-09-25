@@ -25,23 +25,6 @@ An instruction has the form `put the {source} on the {destination}`. Because sou
 
 `--task-set all` collects all six ordered tasks. This is useful for the 600-episode all-task dataset, but it does not provide an unseen instruction-pair test.
 
-## Pipeline
-
-```text
-seeded scene sampling
-        ↓
-batched Genesis environments
-        ↓
-grasp candidates → Cartesian IK → joint retiming → collision dry run
-        ↓
-feedback-gated grasp, lift, transfer, placement, release, and retreat
-        ↓
-2-second stable-stack success test
-        ↓
-successful raw episode (.npz + .json)
-        ↓
-LeRobot v3 dataset (Parquet + H.264 videos)
-```
 
 The teacher uses object poses and contacts only to construct demonstrations and evaluate success. These privileged values are not included in policy observations. At each control step, the collector stores observation `o_t` before applying action `a_t`.
 
@@ -69,7 +52,7 @@ The teacher uses object poses and contacts only to construct demonstrations and 
 
 ## Installation
 
-Run the included installer. It creates or reuses a Conda environment named `piperx_data` with Python 3.12, then installs Genesis, LeRobot dataset support, and this data engine. Use the Genesis and LeRobot revisions and clone commands in the [root README](../README.md#installation). The installer applies `patches/genesis_neutral_collision.patch`, the existing convex-overlap fix used during collection, to the Genesis source tree. Supplying the two source-tree paths explicitly makes the installation independent of where this repository was cloned:
+Run the included installer. It creates or reuses a Conda environment named `piperx_data` with Python 3.12, then installs Genesis, LeRobot dataset support, and this data engine. Use the Genesis and LeRobot clone commands in the [root README](../README.md#installation). The installer applies `patches/genesis_neutral_collision.patch`, the existing convex-overlap fix used during collection, to the Genesis source tree. Supplying the two source-tree paths explicitly makes the installation independent of where this repository was cloned:
 
 ```bash
 cd /path/to/pi0.5-recap/piperx_data_engine

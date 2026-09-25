@@ -15,7 +15,7 @@
 在前台执行这一条命令：
 
 ```bash
-cd /home/ajifang/RLinf
+cd /path/to/RLinf
 bash examples/offline_rl/piperx_recap_edited/run_all_true_pipeline_edited.sh
 ```
 
@@ -24,11 +24,11 @@ bash examples/offline_rl/piperx_recap_edited/run_all_true_pipeline_edited.sh
 最终输出是：
 
 ```text
-/home/ajifang/genesis-world/vla/stacking/data/pi05_policy_failures_73_lerobot
-/home/ajifang/genesis-world/vla/stacking/data/pi05_value_600success_73failure_lerobot
-/home/ajifang/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited/checkpoints/step_003000/pi05_value.pt
-/home/ajifang/genesis-world/vla/stacking/data/pi05_positive_227plus26_lerobot
-/home/ajifang/rlinf-experiments/piperx_advantage_stage1_all_true_edited/checkpoints/global_step_3000/actor
+/path/to/genesis-world/vla/stacking/data/pi05_policy_failures_73_lerobot
+/path/to/genesis-world/vla/stacking/data/pi05_value_600success_73failure_lerobot
+/path/to/rlinf-experiments/piperx_recap_value_stage1_600plus73_edited/checkpoints/step_003000/pi05_value.pt
+/path/to/genesis-world/vla/stacking/data/pi05_positive_227plus26_lerobot
+/path/to/rlinf-experiments/piperx_advantage_stage1_all_true_edited/checkpoints/global_step_3000/actor
 ```
 
 最后一个目录是可直接填入 `model_path` 的 native OpenPI_RLinf adapter。加载时会先读取原 step-5000 dense checkpoint，再覆盖这次训练的 adapter，并在正 indicator 推理指令后加入 advantage 条件。
@@ -42,7 +42,7 @@ Value VLM 会从同一个 673 条数据集看到 600 条成功示教与全部 73
 这套代码把你当前已经训练过的 PiperX π0.5 当作 value VLM，而不是重新使用官方 RECAP 示例中的 SigLIP2 + Gemma3 critic。加载的 checkpoint 是：
 
 ```text
-/home/ajifang/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
+/path/to/RLinf/logs/20260921-20:49:58-piperx_sft_openpi_pi05_rlinf/piperx_mixed600_official_base/checkpoints/global_step_5000/actor
 ```
 
 它与当前 policy 使用同一套 `SigLIP + PaliGemma` 权重、两路相机顺序、PiperX state 编码、tokenizer 和 normalization。value forward 只运行 π0.5 的 observation prefix，然后把有效 image/language token 的 hidden state 做 masked mean pooling，再交给新的 201-bin value head。action expert 虽然属于同一个 checkpoint、会被加载到显存，但 value forward 不调用 `run_suffix()`，因此不执行 flow matching action expert。
@@ -55,9 +55,9 @@ Value VLM 会从同一个 673 条数据集看到 600 条成功示教与全部 73
 - `config_stage1_600plus73_edited.yaml`：读取单一 673 条 LeRobot 数据集训练 value VLM 的配置。
 - `positive_policy_edited.yaml`：227 条成功 rollout 加 26 条 IK expert 后缀的 policy 微调配置。
 - `train_positive_policy_edited.py`：读取 LeRobot v3 双视角数据，保留逐帧 advantage 到 native π0.5 `forward`，训练 VLM/action-expert LoRA，并保存紧凑 native adapter。
-- `/home/ajifang/genesis-world/vla/stacking/export_positive_recap_lerobot.py`：重放成功 rollout、追加 expert 后缀并生成 all-true sidecar。
-- `/home/ajifang/genesis-world/vla/stacking/export_policy_failures_lerobot.py`：重放全部 73 条失败 rollout、生成双视角 LeRobot value 数据。
-- `/home/ajifang/genesis-world/vla/stacking/merge_value_lerobot.py`：给 600 条成功数据补 outcome 标签、移除未使用的第三路相机，并与 73 条失败数据物理合并成 673 条。
+- `/path/to/genesis-world/vla/stacking/export_positive_recap_lerobot.py`：重放成功 rollout、追加 expert 后缀并生成 all-true sidecar。
+- `/path/to/genesis-world/vla/stacking/export_policy_failures_lerobot.py`：重放全部 73 条失败 rollout、生成双视角 LeRobot value 数据。
+- `/path/to/genesis-world/vla/stacking/merge_value_lerobot.py`：给 600 条成功数据补 outcome 标签、移除未使用的第三路相机，并与 73 条失败数据物理合并成 673 条。
 - `config_edited.yaml`：保留失败前缀的 failure-aware value 实验配置；当前 all-true 流程不读取它。
 - `checkpoint_edited.py`：按现有 checkpoint 的真实结构重建 `gemma_2b_lora + gemma_300m_lora` π0.5，并加载 `global_step_5000` 权重。
 - `pi05_value_critic_edited.py`：执行 π0.5 VLM prefix，聚合 2048 维 hidden state，接 `2048 → 1024 → 201` value head；只打开 PaliGemma expert-0 LoRA 的梯度。
@@ -76,7 +76,7 @@ Value VLM 会从同一个 673 条数据集看到 600 条成功示教与全部 73
 - `rlinf/models/embodiment/openpi_rlinf/pi0.py`：`build_prefix_cache()` 运行视觉与语言 prefix。
 - `rlinf/models/embodiment/openpi_rlinf/modules/model.py`：把图像 resize/pad，并建立 model observation。
 - `rlinf/models/embodiment/openpi/dataconfig/piperx_dataconfig.py`：两路相机、7 维 state 与 prompt 的 PiperX 映射。
-- `/home/ajifang/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json`：与当前 π0.5 训练和评测相同的 state/action normalization。
+- `/path/to/models/pi05_base_official_openpi_rlinf/piperx_five_tasks_2views/norm_stats.json`：与当前 π0.5 训练和评测相同的 state/action normalization。
 
 ## 奖励和 normalization
 
@@ -122,42 +122,42 @@ is_success                    轨迹最终成功标记
 先检查奖励与 bin 数学：
 
 ```bash
-cd /home/ajifang/RLinf/examples/offline_rl/piperx_recap_edited
-/home/ajifang/RLinf/.venv/bin/python self_check_edited.py
+cd /path/to/RLinf/examples/offline_rl/piperx_recap_edited
+/path/to/RLinf/.venv/bin/python self_check_edited.py
 ```
 
 先把现有26条双视角失败前缀导出成 LeRobot rollout：
 
 ```bash
-cd /home/ajifang/RLinf/examples/offline_rl/piperx_recap_edited
-/home/ajifang/miniconda3/envs/lerobot_pi05/bin/python -u \
+cd /path/to/RLinf/examples/offline_rl/piperx_recap_edited
+/path/to/miniconda3/envs/lerobot_pi05/bin/python -u \
   export_failure_prefixes_edited.py \
-  --input /home/ajifang/genesis-world/vla/stacking/data/pi05_ik_corrections_35_fixed_20260923_204117_raw \
-  --output /home/ajifang/genesis-world/vla/stacking/data/pi05_recap_failure_prefixes_26_lerobot \
+  --input /path/to/genesis-world/vla/stacking/data/pi05_ik_corrections_35_fixed_20260923_204117_raw \
+  --output /path/to/genesis-world/vla/stacking/data/pi05_recap_failure_prefixes_26_lerobot \
   --repo-id local/piperx_recap_failure_prefixes_26
 ```
 
 然后为成功示教和失败 rollout 写 return sidecar：
 
 ```bash
-cd /home/ajifang/RLinf/examples/offline_rl/piperx_recap_edited
-/home/ajifang/RLinf/.venv/bin/python -u compute_returns_edited.py \
+cd /path/to/RLinf/examples/offline_rl/piperx_recap_edited
+/path/to/RLinf/.venv/bin/python -u compute_returns_edited.py \
   --config config_edited.yaml
 ```
 
 随后在前台训练独立的 value VLM 副本：
 
 ```bash
-cd /home/ajifang/RLinf/examples/offline_rl/piperx_recap_edited
+cd /path/to/RLinf/examples/offline_rl/piperx_recap_edited
 CUDA_VISIBLE_DEVICES=0 \
-/home/ajifang/RLinf/.venv/bin/python -u train_value_edited.py \
+/path/to/RLinf/.venv/bin/python -u train_value_edited.py \
   --config config_edited.yaml
 ```
 
 训练输出位于：
 
 ```text
-/home/ajifang/rlinf-experiments/piperx_recap_value_edited/
+/path/to/rlinf-experiments/piperx_recap_value_edited/
 ├── checkpoints/
 │   ├── step_003000/
 │   └── step_006000/
@@ -170,8 +170,8 @@ CUDA_VISIBLE_DEVICES=0 \
 查看 TensorBoard：
 
 ```bash
-/home/ajifang/RLinf/.venv/bin/tensorboard \
-  --logdir /home/ajifang/rlinf-experiments/piperx_recap_value_edited/tensorboard \
+/path/to/RLinf/.venv/bin/tensorboard \
+  --logdir /path/to/rlinf-experiments/piperx_recap_value_edited/tensorboard \
   --host 0.0.0.0 \
   --port 6006
 ```
@@ -179,9 +179,9 @@ CUDA_VISIBLE_DEVICES=0 \
 训练完成后检查某一帧的 value 预测：
 
 ```bash
-cd /home/ajifang/RLinf/examples/offline_rl/piperx_recap_edited
+cd /path/to/RLinf/examples/offline_rl/piperx_recap_edited
 CUDA_VISIBLE_DEVICES=0 \
-/home/ajifang/RLinf/.venv/bin/python -u predict_value_edited.py \
+/path/to/RLinf/.venv/bin/python -u predict_value_edited.py \
   --config config_edited.yaml \
   --frame-index 10000
 ```
