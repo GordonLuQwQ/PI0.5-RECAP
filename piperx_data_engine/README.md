@@ -152,7 +152,7 @@ The result uses LeRobot v3 Parquet metadata and H.264/YUV420P videos at 20 FPS. 
 |---|---|
 | `third_person` | `observation.images.image` |
 | `wrist` | `observation.images.image2` |
-
+The Camera in the third person point of view has been set to 35 degree below the origin to avoid any sheltering of the robotic arm itself from observing the full table sense. 
 ## Action space
 
 The action is a 7-dimensional continuous vector applied at 20 Hz:
@@ -204,15 +204,6 @@ Each object is 0.04 m tall. Cubes are 0.04 × 0.04 × 0.04 m; the cylinder has a
 The XY region stays inside the PiperX grasp workspace while covering both sides of the arm. The 0.10 m separation prevents initial overlap and leaves enough clearance for a side grasp. Full-yaw sampling prevents the cube demonstrations from containing one privileged face orientation.
 
 Scene seeds are partitioned as follows:
-
-| Purpose | Seeds |
-|---|---|
-| Training collection | 1000–1999 |
-| Validation | 8000–8019 |
-| Final evaluation | 10000–10049 |
-| Fixed-scene reversal test | 20000–20019 |
-
-The same seed may be used for different instructions. This deliberately creates identical object layouts for language-reversal comparisons.
 
 ## Scripted teacher
 
